@@ -87,8 +87,9 @@ export const MSG = {
     LIVE0: '방송이 시작되었습니다',
     LIVE1: '방송 진행 중입니다',
     LIVE2: '방송 제목이 변경되었습니다',
-    LIVE3: '방송이 종료되었습니다',
-    LIVE4: '방송이 오프라인입니다',
+    LIVE3: '방송 카테고리가 변경되었습니다',
+    LIVE4: '방송이 종료되었습니다',
+    LIVE5: '방송이 오프라인입니다',
 
     QUIT: '프로그램을 종료합니다',
 };
@@ -145,7 +146,7 @@ export function initStreamer() {
         for (const [key] of Object.entries(users)) {
             if (!streamers[key])
             {
-                streamers[key] = { id: -1, title: '' }
+                streamers[key] = { id: -1, title: '', cate: '' }
             }
         }
 
@@ -260,9 +261,11 @@ function states(i, id) {
     } else if (i === 2) {
         return `🟡 ${users[id]} ${MSG.LIVE2}`;
     } else if (i === 3) {
-        return `🔴 ${users[id]} ${MSG.LIVE3}`;
+        return `🟡 ${users[id]} ${MSG.LIVE3}`;
+    } else if (i === 4) {
+        return `🔴 ${users[id]} ${MSG.LIVE4}`;
     } else {
-        return `⚫ ${users[id]} ${MSG.LIVE4}`;
+        return `⚫ ${users[id]} ${MSG.LIVE5}`;
     }
 }
 
@@ -291,7 +294,7 @@ async function find(id) {
     if (!s || !s.nBroadNo) {
         // OFLINE
         sendLog('OFFLINE', users[s.szBjId]);
-        return embed(4, s);
+        return embed(5, s);
     }
 
     // ONLINE
@@ -309,57 +312,73 @@ async function live(id) {
 
     const title = streamers[id].title;
     const state = streamers[id].id;
+    const cate = streamers[id].cate;
 
     if (!s || !s.nBroadNo) {
         // ENDED
-        if (state >= 0 && state <= 2) {
-            if (state === 3) {
-                return;
-            }
-            sendLog('ENDED', users[s.szBjId]);
-            streamers[id].id = 3;
-            streamers[id].title = s.szBroadTitle;
-            
-            return embed(3, s);
-        
-        // OFFLINE
-        } else if (state !== 3) {
+        if (state >= 0 && state <= 3) {
             if (state === 4) {
                 return;
             }
-            sendLog('OFFLINE', users[s.szBjId]);
+            sendLog('ENDED', users[s.szBjId]);
             streamers[id].id = 4;
+            streamers[id].title = s.szBroadTitle;
+            streamers[id].cate = s.nCateNo;
             
             return embed(4, s);
+        
+        // OFFLINE
+        } else if (state !== 4) {
+            if (state === 5) {
+                return;
+            }
+            sendLog('OFFLINE', users[s.szBjId]);
+            streamers[id].id = 5;
+            
+            return embed(5, s);
         }
     }
 
     // START
-    if (state === 4) {
+    if (state === 5) {
         if (state === 0) {
             return;
         }
         sendLog('START', users[s.szBjId]);
         streamers[id].id = 0;
         streamers[id].title = s.szBroadTitle;
+        streamers[id].cate = s.nCateNo;
 
         return embed(0, s);
     }
 
     // CHANGE
     if (title && title !== s.szBroadTitle) {
-        if (state >= 3 && state <= 4) {
+        if (state >= 4 && state <= 5) {
             return;
         }
         sendLog('CHANGE', users[s.szBjId]);
         streamers[id].id = 2;
         streamers[id].title = s.szBroadTitle;
+        streamers[id].cate = s.nCateNo;
 
         return embed(2, s);
     }
+    
+    if (cate && cate !== s.nCateNo) {
+        if (state >= 4 && state <= 5) {
+            return;
+        }
+        sendLog('CHANGE', users[s.szBjId]);
+        streamers[id].id = 3;
+        streamers[id].title = s.szBroadTitle;
+        streamers[id].cate = s.nCateNo;
+
+        return embed(3, s);
+    }
 
     // ONLINE
-    if (state >= 0 && state <= 2) {
+    if (state >= 0 && state <= 3) {
         return;
     } else if (title === MSG.OFFLINE) {
         return;
@@ -367,6 +386,7 @@ async function live(id) {
     sendLog('ONLINE', users[s.szBjId]);
     streamers[id].id = 1;
     streamers[id].title = s.szBroadTitle;
+    streamers[id].cate = s.nCateNo;
     
     return embed(1, s);
 }
