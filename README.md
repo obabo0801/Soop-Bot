@@ -1,7 +1,7 @@
 # SOOP Bot
 SOOP 라이브 방송 상태를 감지해서 디스코드로 자동 알림을 보내는 봇
 
-![git readme image-001](https://github.com/user-attachments/assets/3aba26fe-74d1-4676-a950-5353252b762f)
+![git readme image-001](https://github.com/user-attachments/assets/761f6860-b005-463b-9d4a-061db5340271)
 
 ────────────────────────
 
