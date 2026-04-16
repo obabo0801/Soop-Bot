@@ -18,10 +18,8 @@
   "imports": {
     "#config": "./config.json",
     "#index": "./index.js",
-
     "#commands": "./scripts/commands.js",
     "#db": "./scripts/db.js",
-
     "#utils": "./scripts/utils.js",
     "#logger": "./scripts/logger.js"
   }

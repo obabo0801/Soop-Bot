@@ -4,8 +4,6 @@
 import { config } from 'dotenv';
 config({quiet: true});
 
-import { readFile } from '#utils';
-
 // =====================
 // Discord
 // =====================
@@ -26,6 +24,10 @@ import * as cheerio from 'cheerio';
 // Internal
 // =====================
 import {
+    readFile
+} from '#utils';
+
+import {
     parseLive,
     refresh,
     startBot
@@ -37,7 +39,7 @@ import {
     errorLog
 } from '#logger';
 
-let user, choices;
+let categorys, users, choices;
 
 // =====================
 // Constants
@@ -46,6 +48,11 @@ export const MSG = {
     ENV_SUCCESS: '📄 .env 성공',
     ENV_FAIL: '.env 실패',
     ENV_INVALID: '.env 파일을 찾을 수 없습니다',
+
+    CATEGORY_SUCCESS: '📖 Category 성공',
+    CATEGORY_FAI: 'Category 실패',
+    CATEGORY_INVALID: 'category.json 파일을 찾을 수 없습니다',
+    CATEGORY_ERROR: 'Category 에러가 발생했습니다',
 
     CONFIG_SUCCESS: '📄 Config 성공',
     CONFIG_FAIL: 'Config 실패',
@@ -100,6 +107,21 @@ const client = new Client({intents: [
 // =====================
 const streamers = {};
 
+export function loadCategory() {
+    try {
+        const data = readFile('./category.json');
+        if (!data) {
+            errorLog(MSG.CATEGORY_INVALID);
+            return;
+        }
+        categorys = JSON.parse(data);
+        infoLog(MSG.CATEGORY_SUCCESS);
+    } catch (e) {
+        errorLog(MSG.CATEGORY_FAIL);
+        categorys = null;
+    }
+}
+
 export function loadConfig() {
     try {
         const data = readFile('./config.json');
@@ -107,19 +129,20 @@ export function loadConfig() {
             errorLog(MSG.CONFIG_INVALID);
             return;
         }
-        user = JSON.parse(data);
-        choices = Object.entries(user)
+        users = JSON.parse(data);
+        choices = Object.entries(users)
         .map(([value, name]) => ({name, value}));
+        initStreamer();
         infoLog(MSG.CONFIG_SUCCESS);
     } catch (e) {
         errorLog(MSG.CONFIG_FAIL);
-        user = null;
+        users = null;
     }
 }
 
 export function initStreamer() {
     try {
-        for (const [key] of Object.entries(user)) {
+        for (const [key] of Object.entries(users)) {
             if (!streamers[key])
             {
                 streamers[key] = { id: -1, title: '' }
@@ -127,7 +150,7 @@ export function initStreamer() {
         }
 
         for (const key of Object.keys(streamers)) {
-            if (!user[key]) {
+            if (!users[key]) {
                 delete streamers[key];
             }
         }
@@ -180,14 +203,14 @@ function url(id) {
 function embed(i, s) {
     return { embeds: [
         {
-            title: states(i, s.id),
+            title: states(i, s.szBjId),
             description: des(s),
             color: colors(i),
             thumbnail: {
-                url: s.thumb
+                url: s.szBroadThumPath
             },
             footer: {
-                text: ''
+                text: categorys[s.nCateNo]
             },
             timestamp: new Date()
         }
@@ -195,7 +218,7 @@ function embed(i, s) {
 }
 
 function des(s) {
-    return `${s.title}\n${url(s.id)}`
+    return `${s.szBroadTitle}\n${url(s.id)}`
 }
 
 function re() {
@@ -204,7 +227,7 @@ function re() {
 }
 
 async function load() {
-    for (const [key] of Object.entries(user)) {
+    for (const [key] of Object.entries(users)) {
         const t = await live(key);
         const channel = client.channels
         .cache.get(process.env.CHANNEL_ID);
@@ -231,15 +254,15 @@ async function check(id) {
 
 function states(i, id) {
     if (i === 0) {
-        return `🟢 ${user[id]} ${MSG.LIVE0}`;
+        return `🟢 ${users[id]} ${MSG.LIVE0}`;
     } else if (i === 1) {
-        return `🟢 ${user[id]} ${MSG.LIVE1}`;
+        return `🟢 ${users[id]} ${MSG.LIVE1}`;
     } else if (i === 2) {
-        return `🟡 ${user[id]} ${MSG.LIVE2}`;
+        return `🟡 ${users[id]} ${MSG.LIVE2}`;
     } else if (i === 3) {
-        return `🔴 ${user[id]} ${MSG.LIVE3}`;
+        return `🔴 ${users[id]} ${MSG.LIVE3}`;
     } else {
-        return `⚫ ${user[id]} ${MSG.LIVE4}`;
+        return `⚫ ${users[id]} ${MSG.LIVE4}`;
     }
 }
 
@@ -265,14 +288,14 @@ async function find(id) {
         return;
     }
 
-    if (!s || !s.number) {
+    if (!s || !s.nBroadNo) {
         // OFLINE
-        sendLog('OFFLINE', user[s.id]);
+        sendLog('OFFLINE', users[s.szBjId]);
         return embed(4, s);
     }
 
     // ONLINE
-    sendLog('ONLINE', user[s.id]);
+    sendLog('ONLINE', users[s.szBjId]);
     return embed(1, s);
 }
 
@@ -287,15 +310,15 @@ async function live(id) {
     const title = streamers[id].title;
     const state = streamers[id].id;
 
-    if (!s || !s.number) {
+    if (!s || !s.nBroadNo) {
         // ENDED
         if (state >= 0 && state <= 2) {
             if (state === 3) {
                 return;
             }
-            sendLog('ENDED', user[s.id]);
+            sendLog('ENDED', users[s.szBjId]);
             streamers[id].id = 3;
-            streamers[id].title = s.title;
+            streamers[id].title = s.szBroadTitle;
             
             return embed(3, s);
         
@@ -304,7 +327,7 @@ async function live(id) {
             if (state === 4) {
                 return;
             }
-            sendLog('OFFLINE', user[s.id]);
+            sendLog('OFFLINE', users[s.szBjId]);
             streamers[id].id = 4;
             
             return embed(4, s);
@@ -316,21 +339,21 @@ async function live(id) {
         if (state === 0) {
             return;
         }
-        sendLog('START', user[s.id]);
+        sendLog('START', users[s.szBjId]);
         streamers[id].id = 0;
-        streamers[id].title = s.title;
+        streamers[id].title = s.szBroadTitle;
 
         return embed(0, s);
     }
 
     // CHANGE
-    if (title && title !== s.title) {
+    if (title && title !== s.szBroadTitle) {
         if (state >= 3 && state <= 4) {
             return;
         }
-        sendLog('CHANGE', user[s.id]);
+        sendLog('CHANGE', users[s.szBjId]);
         streamers[id].id = 2;
-        streamers[id].title = s.title;
+        streamers[id].title = s.szBroadTitle;
 
         return embed(2, s);
     }
@@ -341,9 +364,9 @@ async function live(id) {
     } else if (title === MSG.OFFLINE) {
         return;
     }
-    sendLog('ONLINE', user[s.id]);
+    sendLog('ONLINE', users[s.szBjId]);
     streamers[id].id = 1;
-    streamers[id].title = s.title;
+    streamers[id].title = s.szBroadTitle;
     
     return embed(1, s);
 }
@@ -360,7 +383,7 @@ async function commandExecute(i) {
 async function commandSlash(i) {
     if (i.commandName === 'soop') {
         const id = i.options.getString(`id`);
-        sendLog('SLASH', user[id]);
+        sendLog('SLASH', users[id]);
         let t = await find(id, false);
         if (!t) t = MSG.FAIL;
         return await i.reply(t);

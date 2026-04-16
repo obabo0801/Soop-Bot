@@ -3,7 +3,8 @@
 // =====================
 
 import { commands, gcommands } from '#index';
-import { loadConfig, initStreamer, initCommands, initGcommands } from '#index';
+import { loadCategory, loadConfig,  
+    initCommands, initGcommands } from '#index';
 import { parse } from 'dotenv';
 import { REST, Routes } from 'discord.js';
 import { MSG } from '#index';
@@ -21,13 +22,16 @@ export function parseLive(str) {
 /window\.szBroadThumPath\s*=\s*'([^']+)'/);
     const match3 = str.match(
 /window\.nBroadNo\s*=\s*(\d+)/);
+    const match4 = str.match(
+/window\.nCateNo\s*=\s*['"](\d+)['"]/);
 
     const result = {
-        nick: match?.[1] ?? '',
-        id: match0?.[1] ?? '',
-        title: match1?.[1] ?? '',
-        thumb: match2?.[1] ?? '',
-        number: match3?.[1] ?? null
+        szBjNick: match?.[1] ?? '',
+        szBjId: match0?.[1] ?? '',
+        szBroadTitle: match1?.[1] ?? '',
+        szBroadThumPath: match2?.[1] ?? '',
+        nBroadNo: match3?.[1] ?? null,
+        nCateNo: match4?.[1] ?? null
     };
     
     return result;
@@ -82,8 +86,8 @@ export async function createCommands(body) {
 
 export async function refresh() {
     try {
-        loadConfig(); initGcommands();
-        initCommands(); initStreamer();
+        loadCategory(); loadConfig();
+        initGcommands(); initCommands();
         await createCommands(commands);
         await createGuildCommands(gcommands);
         return true;
