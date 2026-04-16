@@ -289,7 +289,7 @@ async function live(id) {
 
     if (!s || !s.number) {
         // ENDED
-        if (state === 0 || state === 1) {
+        if (state >= 0 && state <= 2) {
             if (state === 3) {
                 return;
             }
@@ -325,7 +325,7 @@ async function live(id) {
 
     // CHANGE
     if (title && title !== s.title) {
-        if (state === 2) {
+        if (state >= 3 && state <= 4) {
             return;
         }
         sendLog('CHANGE', user[s.id]);
