@@ -219,7 +219,7 @@ function embed(i, s) {
 }
 
 function des(s) {
-    return `${s.szBroadTitle}\n${url(s.id)}`
+    return `${s.szBroadTitle}\n${url(s.szBjId)}`
 }
 
 function re() {
