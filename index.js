@@ -45,17 +45,17 @@ let categorys, users, choices;
 // Constants
 // =====================
 export const MSG = {
-    ENV_SUCCESS: '📄 .env 성공',
-    ENV_FAIL: '.env 실패',
+    ENV_SUCCESS: '📄 .env 불러오기 성공',
+    ENV_FAIL: '.env 불러오기 실패',
     ENV_INVALID: '.env 파일을 찾을 수 없습니다',
 
-    CATEGORY_SUCCESS: '📖 Category 성공',
-    CATEGORY_FAI: 'Category 실패',
+    CATEGORY_SUCCESS: '📖 Category 불러오기 성공',
+    CATEGORY_FAIL: 'Category 불러오기 실패',
     CATEGORY_INVALID: 'category.json 파일을 찾을 수 없습니다',
     CATEGORY_ERROR: 'Category 에러가 발생했습니다',
 
-    CONFIG_SUCCESS: '📄 Config 성공',
-    CONFIG_FAIL: 'Config 실패',
+    CONFIG_SUCCESS: '📄 Config 불러오기 성공',
+    CONFIG_FAIL: 'Config 불러오기 실패',
     CONFIG_INVALID: 'config.json 파일을 찾을 수 없습니다',
     CONFIG_ERROR: 'Config 에러가 발생했습니다',
 
@@ -77,7 +77,18 @@ export const MSG = {
     REFRESH_SUCCESS: '📄 새로고침 완료',
     REFRESH_FAIL: '새로고침 실패',
     REFRESH_CMD: '설정을 새로고침합니다',
-    REFRESH_DESC: '설정을 다시 불러옵니다',
+
+    LIST: '목록',
+    LIST_SUCCESS: '👥 목록 조회 완료',
+    LIST_FAIL: '목록 조회 실패',
+    LIST_CMD: '스트리머 상태 목록을 확인합니다',
+    LIST_TYPE: '조회할 상태를 선택하세요',
+    LIST_ONLINE: '온라인',
+    LIST_ONLINE_DESC: '현재 방송 중인 스트리머만 표시합니다',
+    LIST_OFFLINE: '오프라인',
+    LIST_OFFLINE_DESC: '현재 방송이 종료된 스트리머만 표시합니다',
+    LIST_ALL: '전체',
+    LIST_ALL_DESC: '모든 스트리머 상태를 표시합니다',
 
     FIND: '방송을 확인합니다',
     NOT: '를 찾을 수가 없습니다',
@@ -146,7 +157,13 @@ export function initStreamer() {
         for (const [key] of Object.entries(users)) {
             if (!streamers[key])
             {
-                streamers[key] = { id: -1, title: '', cate: '' }
+                streamers[key] = {
+                    id: -1,
+                    nowTitle: '',
+                    oldTitle: '',
+                    nowCate: '',
+                    oldCate: '',
+                }
             }
         }
 
@@ -158,6 +175,246 @@ export function initStreamer() {
     } catch (e) {
         errorLog(MSG.CONFIG_ERROR);
     }
+}
+
+// =====================
+// URL
+// =====================
+function url(id) {
+    return `https://play.sooplive.com/${id}`
+}
+
+// =====================
+// Method
+// =====================
+function embed(i, s) {
+    return { embeds: [
+        {
+            title: states(i, s.szBjId),
+            description: desc(i, s),
+            color: colors(i),
+            thumbnail: {
+                url: s.szBroadThumPath
+            },
+            footer: {
+                text: categorys[s.nCateNo]
+            },
+            timestamp: new Date()
+        }
+    ]};
+}
+
+function desc(i, s) {
+    if (i === 2) {
+        const old = streamers[s.szBjId].oldTitle;
+        streamers[s.szBjId].oldTitle = s.szBroadTitle;
+        return `${old} →\n` + 
+        `${s.szBroadTitle}\n${url(s.szBjId)}`;
+    } else if (i === 3) {
+        const old = streamers[s.szBjId].oldCate;
+        streamers[s.szBjId].oldCate = s.nCateNo;
+        return `${s.szBroadTitle}\n${categorys[old]} →\n ` +
+        `${categorys[s.nCateNo]}\n${url(s.szBjId)}`;
+    }
+    
+    return `${s.szBroadTitle}\n${url(s.szBjId)}`;
+}
+
+function isInitial() {
+    return process.env.INITIAL
+    .toLowerCase() == 'true';
+}
+
+function isLoop() {
+    return process.env.LOOP
+    .toLowerCase() == 'true';
+}
+
+async function load() {
+    try {
+        for (const [key] of Object.entries(users)) {
+            const t = await live(key);
+            const channel = client.channels
+            .cache.get(process.env.CHANNEL_ID);
+            if (t && channel) channel.send(t);
+        }
+        process.env.INITIAL = 'False';
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+async function list(type, i) {
+    try {
+        let count = 0;
+        for (const [key] of Object.entries(users)) {
+            const t = await find(key, type);
+            if (t && i) {
+                i.followUp(t);
+                count++;
+            }
+        }
+        return count;
+    } catch (e) {
+        return 0;
+    }
+}
+
+async function fetch(id) {
+    const { data } = await axios.get(url(id));
+    return cheerio.load(data);
+}
+
+async function check(id) {
+    const $ = await fetch(id);
+    let result = null;
+    $('script').each((_, e) => {
+        const str = $(e).html();
+        if (!str) return;
+        result = parseLive(str);
+        if (result) return false;
+    });
+    return result;
+}
+
+function states(i, id) {
+    switch (i) {
+        case 0: return `🟢 ${users[id]} ${MSG.LIVE0}`;
+        case 1: return `🟢 ${users[id]} ${MSG.LIVE1}`;
+        case 2: return `🟡 ${users[id]} ${MSG.LIVE2}`;
+        case 3: return `🔵 ${users[id]} ${MSG.LIVE3}`;
+        case 4: return `🔴 ${users[id]} ${MSG.LIVE4}`;
+        default: return `⚫ ${users[id]} ${MSG.LIVE5}`;
+    }
+}
+
+function colors(i) {
+    switch (i) {
+        case 0: return 0x64EB9B; // 🟢
+        case 1: return 0x64EB9B; // 🟢
+        case 2: return 0xF5C850; // 🟡
+        case 3: return 0x5A9DE4; // 🔵
+        case 4: return 0xF55068; // 🔴
+        default: return 0x5C5663; // ⚫
+    }
+}
+
+async function find(id, state = 0) {
+    const s = await check(id);
+
+    if (!streamers[id]) {
+        errorLog(`${id} ${MSG.NOT}`);
+        return;
+    }
+
+    if (!s || !s.nBroadNo) {
+        // OFLINE
+        if (state === 1) return;
+        sendLog('OFFLINE', users[s.szBjId]);
+        return embed(5, s);
+    }
+
+    // ONLINE
+    if (state === 2) return;
+    sendLog('ONLINE', users[s.szBjId]);
+    return embed(1, s);
+}
+
+async function live(id) {
+    const s = await check(id);
+
+    if (!streamers[id]) {
+        errorLog(`${id} ${MSG.NOT}`);
+        return;
+    }
+
+    const title = streamers[id].nowTitle;
+    const state = streamers[id].id;
+    const cate = streamers[id].nowCate;
+
+    if (!s || !s.nBroadNo) {
+        // ENDED
+        if (state >= 0 && state <= 3) {
+            if (state === 4) return;
+            sendLog('ENDED', users[s.szBjId]);
+            streamers[id].id = 4;
+            streamers[id].nowTitle = s.szBroadTitle;
+            streamers[id].nowCate = s.nCateNo;
+            streamers[id].oldTitle = s.szBroadTitle;
+            streamers[id].oldCate = s.nCateNo;
+            
+            return embed(4, s);
+        
+        // OFFLINE
+        } else if (state !== 4) {
+            if (state === 5) return;
+            sendLog('OFFLINE', users[s.szBjId]);
+            streamers[id].id = 5;
+            
+            if (!isInitial()) {
+                return;
+            }
+            
+            return embed(5, s);
+        }
+    }
+
+    // START
+    if (state === 5) {
+        sendLog('START', users[s.szBjId]);
+        streamers[id].id = 0;
+        streamers[id].nowTitle = s.szBroadTitle;
+        streamers[id].nowCate = s.nCateNo;
+        streamers[id].oldTitle = s.szBroadTitle;
+        streamers[id].oldCate = s.nCateNo;
+
+        return embed(0, s);
+    }
+
+    // CHANGE
+    if (title && title !== s.szBroadTitle) {
+        if (state >= 4 && state <= 5) {
+            return;
+        }
+        sendLog('CHANGE', users[s.szBjId]);
+        streamers[id].id = 2;
+        streamers[id].nowTitle = s.szBroadTitle;
+        streamers[id].nowCate = s.nCateNo;
+
+        return embed(2, s);
+    }
+    
+    if (cate && cate !== s.nCateNo) {
+        if (state >= 4 && state <= 5) {
+            return;
+        }
+        sendLog('CHANGE', users[s.szBjId]);
+        streamers[id].id = 3;
+        streamers[id].nowTitle = s.szBroadTitle;
+        streamers[id].nowCate = s.nCateNo;
+
+        return embed(3, s);
+    }
+
+    // ONLINE
+    if (state >= 0 && state <= 3) {
+        return;
+    } else if (title === MSG.OFFLINE) {
+        return;
+    }
+    sendLog('ONLINE', users[s.szBjId]);
+    streamers[id].id = 1;
+    streamers[id].nowTitle = s.szBroadTitle;
+    streamers[id].nowCate = s.nCateNo;
+    streamers[id].oldTitle = s.szBroadTitle;
+    streamers[id].oldCate = s.nCateNo;
+
+    if (!isInitial()) {
+        return;
+    }
+    
+    return embed(1, s);
 }
 
 // =====================
@@ -181,6 +438,21 @@ export function initGcommands() {
         new SlashCommandBuilder()
         .setName('refresh')
         .setDescription(MSG.REFRESH_CMD)
+        .toJSON(),
+        
+        new SlashCommandBuilder()
+        .setName('list')
+        .setDescription(MSG.LIST_CMD)
+        .addIntegerOption(o =>
+            o.setName('type')
+            .setDescription(MSG.LIST_TYPE)
+            .setRequired(true)
+            .addChoices(
+                { name: MSG.LIST_ONLINE, value: 1 },
+                { name: MSG.LIST_OFFLINE, value: 2 },
+                { name: MSG.LIST_ALL, value: 0 }
+            )
+        )
         .toJSON()
     ];
 }
@@ -189,206 +461,6 @@ export let commands = [];
 
 export function initCommands() {
     commands = [];
-}
-
-// =====================
-// URL
-// =====================
-function url(id) {
-    return `https://play.sooplive.com/${id}`
-}
-
-// =====================
-// Method
-// =====================
-function embed(i, s) {
-    return { embeds: [
-        {
-            title: states(i, s.szBjId),
-            description: des(s),
-            color: colors(i),
-            thumbnail: {
-                url: s.szBroadThumPath
-            },
-            footer: {
-                text: categorys[s.nCateNo]
-            },
-            timestamp: new Date()
-        }
-    ]};
-}
-
-function des(s) {
-    return `${s.szBroadTitle}\n${url(s.szBjId)}`
-}
-
-function re() {
-    return process.env.RESTART
-    .toLowerCase() == 'true';
-}
-
-async function load() {
-    for (const [key] of Object.entries(users)) {
-        const t = await live(key);
-        const channel = client.channels
-        .cache.get(process.env.CHANNEL_ID);
-        if (t && channel) { channel.send(t) }
-    }
-}
-
-async function fetch(id) {
-    const { data } = await axios.get(url(id));
-    return cheerio.load(data);
-}
-
-async function check(id) {
-    const $ = await fetch(id);
-    let result = null;
-    $('script').each((_, e) => {
-        const str = $(e).html();
-        if (!str) return;
-        result = parseLive(str);
-        if (result) return false;
-    });
-    return result;
-}
-
-function states(i, id) {
-    if (i === 0) {
-        return `🟢 ${users[id]} ${MSG.LIVE0}`;
-    } else if (i === 1) {
-        return `🟢 ${users[id]} ${MSG.LIVE1}`;
-    } else if (i === 2) {
-        return `🟡 ${users[id]} ${MSG.LIVE2}`;
-    } else if (i === 3) {
-        return `🟡 ${users[id]} ${MSG.LIVE3}`;
-    } else if (i === 4) {
-        return `🔴 ${users[id]} ${MSG.LIVE4}`;
-    } else {
-        return `⚫ ${users[id]} ${MSG.LIVE5}`;
-    }
-}
-
-function colors(i) {
-    if (i === 0) {
-        return 0x64EB9B; // 🟢
-    } else if (i === 1) {
-        return 0x64EB9B; // 🟢
-    } else if (i === 2) {
-        return 0xF5C850; // 🟡
-    } else if (i === 3) {
-        return 0xF55068; // 🔴
-    } else {
-        return 0x5C5663; // ⚫
-    }
-}
-
-async function find(id) {
-    const s = await check(id);
-
-    if (!streamers[id]) {
-        errorLog(`${id} ${MSG.NOT}`);
-        return;
-    }
-
-    if (!s || !s.nBroadNo) {
-        // OFLINE
-        sendLog('OFFLINE', users[s.szBjId]);
-        return embed(5, s);
-    }
-
-    // ONLINE
-    sendLog('ONLINE', users[s.szBjId]);
-    return embed(1, s);
-}
-
-async function live(id) {
-    const s = await check(id);
-
-    if (!streamers[id]) {
-        errorLog(`${id} ${MSG.NOT}`);
-        return;
-    }
-
-    const title = streamers[id].title;
-    const state = streamers[id].id;
-    const cate = streamers[id].cate;
-
-    if (!s || !s.nBroadNo) {
-        // ENDED
-        if (state >= 0 && state <= 3) {
-            if (state === 4) {
-                return;
-            }
-            sendLog('ENDED', users[s.szBjId]);
-            streamers[id].id = 4;
-            streamers[id].title = s.szBroadTitle;
-            streamers[id].cate = s.nCateNo;
-            
-            return embed(4, s);
-        
-        // OFFLINE
-        } else if (state !== 4) {
-            if (state === 5) {
-                return;
-            }
-            sendLog('OFFLINE', users[s.szBjId]);
-            streamers[id].id = 5;
-            
-            return embed(5, s);
-        }
-    }
-
-    // START
-    if (state === 5) {
-        if (state === 0) {
-            return;
-        }
-        sendLog('START', users[s.szBjId]);
-        streamers[id].id = 0;
-        streamers[id].title = s.szBroadTitle;
-        streamers[id].cate = s.nCateNo;
-
-        return embed(0, s);
-    }
-
-    // CHANGE
-    if (title && title !== s.szBroadTitle) {
-        if (state >= 4 && state <= 5) {
-            return;
-        }
-        sendLog('CHANGE', users[s.szBjId]);
-        streamers[id].id = 2;
-        streamers[id].title = s.szBroadTitle;
-        streamers[id].cate = s.nCateNo;
-
-        return embed(2, s);
-    }
-    
-    if (cate && cate !== s.nCateNo) {
-        if (state >= 4 && state <= 5) {
-            return;
-        }
-        sendLog('CHANGE', users[s.szBjId]);
-        streamers[id].id = 3;
-        streamers[id].title = s.szBroadTitle;
-        streamers[id].cate = s.nCateNo;
-
-        return embed(3, s);
-    }
-
-    // ONLINE
-    if (state >= 0 && state <= 3) {
-        return;
-    } else if (title === MSG.OFFLINE) {
-        return;
-    }
-    sendLog('ONLINE', users[s.szBjId]);
-    streamers[id].id = 1;
-    streamers[id].title = s.szBroadTitle;
-    streamers[id].cate = s.nCateNo;
-    
-    return embed(1, s);
 }
 
 // =====================
@@ -402,17 +474,44 @@ async function commandExecute(i) {
 // =====================
 async function commandSlash(i) {
     if (i.commandName === 'soop') {
+        await i.deferReply();
         const id = i.options.getString(`id`);
         sendLog('SLASH', users[id]);
         let t = await find(id, false);
         if (!t) t = MSG.FAIL;
-        return await i.reply(t);
+
+        return await i.editReply(t);
     } else if (i.commandName === 'refresh') {
+        await i.deferReply(
+        { flags: MessageFlags.Ephemeral });
         sendLog('SLASH', MSG.REFRESH);
         const r = await refresh();
         let t = MSG.REFRESH_SUCCESS;
+        
         if (!r) t = MSG.REFRESH_FAIL;
-        return await i.reply(t);
+        r ? infoLog(t) : errorLog(t);
+
+        return await i.deleteReply();
+    } else if (i.commandName === 'list') {
+        await i.deferReply();
+        const type = i.options.getInteger(`type`);
+        sendLog('SLASH', MSG.LIST, type);
+        const r = await list(type, i);
+        const max = Object.keys(users).length;
+        let t; const map = {
+            1: MSG.LIST_ONLINE + ` ${r}/${max}`,
+            2: MSG.LIST_OFFLINE + ` ${r}/${max}`,
+            0: MSG.LIST_ALL + ` ${max}`
+        };
+
+        if (r) {
+            t = MSG.LIST_SUCCESS + ` ${map[type]}`;
+        } else {
+            t = MSG.LIST_FAIL + ` ${map[type]}`;
+        }
+        r ? infoLog(t) : errorLog(t);
+
+        return await i.editReply(t);
     }
 }
 
@@ -435,7 +534,7 @@ client.once('clientReady', async () => {
         infoLog(MSG.LOGIN_SUCCESS);
         infoLog('👤', client.user.tag);
         setInterval(async () => {
-            if (re())
+            if (isLoop())
             {
                 await load();
             }

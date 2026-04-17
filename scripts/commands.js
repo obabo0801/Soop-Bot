@@ -126,9 +126,14 @@ export async function startBot(client) {
     }
 }
 
+process.on('SIGINT', () => {
+    infoLog(MSG.QUIT);
+    process.exit();
+});
+
 process.on('SIGTERM', () => {
     infoLog(MSG.QUIT);
-    process.exit(0);
+    process.exit();
 });
 
 process.on('uncaughtException', (e) => {
