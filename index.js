@@ -180,8 +180,12 @@ export function initStreamer() {
 // =====================
 // URL
 // =====================
-function url(id) {
+function urlBjId(id) {
     return `https://play.sooplive.com/${id}`
+}
+
+function urlBroad(s) {
+    return (urlBjId(s.szBjId) + `/${s.nBroadNo}`);
 }
 
 // =====================
@@ -210,15 +214,15 @@ function desc(i, s) {
         const old = streamers[s.szBjId].oldTitle;
         streamers[s.szBjId].oldTitle = s.szBroadTitle;
         return `${old} →\n` + 
-        `${s.szBroadTitle}\n${url(s.szBjId)}`;
+        `${s.szBroadTitle}\n${urlBroad(s)}`;
     } else if (i === 3) {
         const old = streamers[s.szBjId].oldCate;
         streamers[s.szBjId].oldCate = s.nCateNo;
         return `${s.szBroadTitle}\n${categorys[old]} →\n ` +
-        `${categorys[s.nCateNo]}\n${url(s.szBjId)}`;
+        `${categorys[s.nCateNo]}\n${urlBroad(s)}`;
     }
     
-    return `${s.szBroadTitle}\n${url(s.szBjId)}`;
+    return `${s.szBroadTitle}\n${urlBroad(s)}`;
 }
 
 function isInitial() {
@@ -263,7 +267,7 @@ async function list(type, i) {
 }
 
 async function fetch(id) {
-    const { data } = await axios.get(url(id));
+    const { data } = await axios.get(urlBjId(id));
     return cheerio.load(data);
 }
 
@@ -359,6 +363,8 @@ async function live(id) {
             
             return embed(5, s);
         }
+
+        return;
     }
 
     // START
@@ -376,8 +382,8 @@ async function live(id) {
     // CHANGE TITLE
     if (title && title !== s.szBroadTitle) {
         if (state >= 4 && state <= 5) {
+            return;
         }
-        return;
         sendLog('CHANGE', users[s.szBjId]);
         streamers[id].id = 2;
         streamers[id].nowTitle = s.szBroadTitle;
