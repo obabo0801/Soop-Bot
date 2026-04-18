@@ -187,6 +187,7 @@ function url(id) {
 // =====================
 // Method
 // =====================
+
 function embed(i, s) {
     return { embeds: [
         {
@@ -361,7 +362,7 @@ async function live(id) {
     }
 
     // START
-    if (state === 5) {
+    if (state >= 4 && state <= 5) {
         sendLog('START', users[s.szBjId]);
         streamers[id].id = 0;
         streamers[id].nowTitle = s.szBroadTitle;
@@ -372,26 +373,25 @@ async function live(id) {
         return embed(0, s);
     }
 
-    // CHANGE
+    // CHANGE TITLE
     if (title && title !== s.szBroadTitle) {
         if (state >= 4 && state <= 5) {
-            return;
         }
+        return;
         sendLog('CHANGE', users[s.szBjId]);
         streamers[id].id = 2;
         streamers[id].nowTitle = s.szBroadTitle;
-        streamers[id].nowCate = s.nCateNo;
 
         return embed(2, s);
     }
-    
+
+    // CHANGE CATEGORY
     if (cate && cate !== s.nCateNo) {
         if (state >= 4 && state <= 5) {
             return;
         }
         sendLog('CHANGE', users[s.szBjId]);
         streamers[id].id = 3;
-        streamers[id].nowTitle = s.szBroadTitle;
         streamers[id].nowCate = s.nCateNo;
 
         return embed(3, s);
