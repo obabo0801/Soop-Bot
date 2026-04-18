@@ -359,6 +359,8 @@ async function live(id) {
             
             return embed(5, s);
         }
+
+        return;
     }
 
     // START
